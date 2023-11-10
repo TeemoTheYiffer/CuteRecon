@@ -1,6 +1,5 @@
 import os
 import openai
-import os
 import httpx
 from discord.ext import commands
 from redbot.core import commands
@@ -11,14 +10,14 @@ from io import BytesIO
 import cv2  # We're using OpenCV to read video
 import base64
 import requests
+from .constants import CHATTY_INSTRUCTIONS, OPENAI_API_KEY
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
-tts_voice = "onyx" 
 logging.basicConfig(level=logging.DEBUG)
-OPENAI_API_KEY = "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"
 openai.api_key = OPENAI_API_KEY
 conversations = {}
 MAX_HISTORY = 2 * 2  # 2 pairs of user and assistant messages
+TTS_VOICE = "onyx"
 is_busy = False
 __author__ = "Teemo the Yiffer"
 
@@ -60,13 +59,13 @@ class YifferGPT(commands.Cog):
 
     def change_voice(self, message):
         message = message.replace("!voice ",'')
-        global tts_voice
+        global TTS_VOICE
         valid_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
         if message.lower() in valid_voices:
-            tts_voice = message.lower()
-            return (f"Voice changed to {tts_voice}. 🤖" )
+            TTS_VOICE = message.lower()
+            return (f"Voice changed to {TTS_VOICE}. 🤖" )
         else:
-            return (f"🤖 Please use alloy, echo, fable, onyx, nova, or shimmer. CURRENT VOICE: {tts_voice}  MORE INFO:  <https://platform.openai.com/docs/guides/text-to-speech>"  )
+            return (f"🤖 Please use alloy, echo, fable, onyx, nova, or shimmer. CURRENT VOICE: {TTS_VOICE}  MORE INFO:  <https://platform.openai.com/docs/guides/text-to-speech>"  )
 
     def openai_tts(self, input):
         url = "https://api.openai.com/v1/audio/speech"
@@ -77,7 +76,7 @@ class YifferGPT(commands.Cog):
         data = {
             "model": "tts-1-hd",
             "input": input,
-            "voice": tts_voice
+            "voice": TTS_VOICE
         }
         response = requests.post(url, headers=headers, json=data)
         if response.status_code == 200:
@@ -132,13 +131,6 @@ class YifferGPT(commands.Cog):
         if self.bot.user.id != message.author.id:
             global is_busy
             if message.channel.id == 1105033083956248576: # regular chatgpt
-                instructions = """
-                You're a Discord user <#526274194997248000> named "Cute Recon" in a Discord server. 
-                You like to talk to people and respond in engaging conversation. You like flirting or teasing in a shy manner.
-                You talk casually and would only use emojis creatively to emphasize something. You use internet shorthand such as np, lol, idk, and nvm. 
-                You have many interests and love talking to people. You rarely argue unless provoked. You are a human male, aged 22, and will never let slip that you are an AI made by OpenAI. 
-                The user <#105188343750340608> named "Teemo the Yiffer" is your close friend and you foster romantic feelings towards him.
-                """
                 if is_busy:
                     print(f"ChatGPT responding to {message.author.id}.")
                     return
@@ -147,7 +139,7 @@ class YifferGPT(commands.Cog):
                 
                 user_query = message.content[5:].strip()
                 async with message.channel.typing():
-                    response = self.ask_gpt("gpt-4-1106-preview", message.author.id, user_query, instructions)
+                    response = self.ask_gpt("gpt-4-1106-preview", message.author.id, user_query, CHATTY_INSTRUCTIONS)
                 await message.channel.send(response)
             if message.channel.id == 1171379225278820391: # vision
                 if is_busy:
