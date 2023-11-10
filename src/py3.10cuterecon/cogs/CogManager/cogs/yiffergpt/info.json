@@ -1,0 +1,10 @@
+{
+    "author": ["Teemo the Yiffer"],
+    "bot_version": [3,5,2],
+    "description": "Teemo the Yiffer's ChatGPT 4 implementation.",
+    "hidden": false,
+    "install_msg": "Teemo the Yiffer's ChatGPT 4 implementation",
+    "short": "A cog containing ChatGPT implementation.",
+    "tags" : ["tools", "services","ai", "chatgpt"]
+  }
+  

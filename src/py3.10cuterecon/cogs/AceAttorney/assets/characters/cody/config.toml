@@ -1,0 +1,9 @@
+display_name = "Cody"
+location = "center"
+gender = "male"
+is_child = true
+
+[sprites]
+neutral = ["normal", "confident"]
+positive = ["confident"]
+negative = ["crying", "mutter", "sword"]

@@ -1,0 +1,8 @@
+display_name = "Godot"
+location = "right"
+gender = "male"
+
+[sprites]
+neutral = ["normal"]
+positive = []
+negative = []

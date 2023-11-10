@@ -1,0 +1,10 @@
+{
+    "author": ["Teemo the Yiffer"],
+    "bot_version": [3,0,0],
+    "description": "Teemo the Yiffer's Various Tools",
+    "hidden": false,
+    "install_msg": "Installing Yiffer Tools cog",
+    "short": "A cog containing multiple services & tools",
+    "tags" : ["tools", "services","administration"]
+  }
+  

@@ -1,0 +1,10 @@
+{
+    "author": ["Teemo the Yiffer"],
+    "bot_version": [3,0,0],
+    "description": "Teemo the Yiffer's Artist Database Service",
+    "hidden": false,
+    "install_msg": "Installing Artist Database cog",
+    "short": "An artist database containing their commission information",
+    "tags" : ["artist", "commission","database"]
+  }
+  

@@ -1,0 +1,8 @@
+display_name = "April"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "thinking"]
+positive = ["normal"]
+negative = ["crying", "glaring", "side", "stiff", "thinking"]

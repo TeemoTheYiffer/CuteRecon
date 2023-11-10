@@ -1,0 +1,10 @@
+display_name = "Atmey" # Name of the character that would normally appear in-game
+location = "center" # "left", "right", "center", etc
+gender = "male" # "male" or "female" (used to determine text-click sounds)
+
+# Arrays of strings for neutral, positive, and negative emotions
+[sprites]
+neutral = ["normal", "monocle"]
+positive = ["confident", "monocle"]
+negative = ["sweating", "twitch", "monocle"]
+spoiler = []

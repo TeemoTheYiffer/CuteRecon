@@ -1,0 +1,8 @@
+display_name = "Manella"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "thinking"]
+positive = ["normal", "wiggle"]
+negative = ["mad", "worried", "thinking"]

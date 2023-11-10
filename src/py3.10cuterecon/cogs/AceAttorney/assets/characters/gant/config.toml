@@ -1,0 +1,8 @@
+display_name = "Gant"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "thinking"]
+positive = ["smiling", "thinking"]
+negative = ["glare", "impatient", "sweating"]

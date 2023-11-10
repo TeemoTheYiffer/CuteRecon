@@ -1,0 +1,8 @@
+display_name = "Maggey"
+location = "center"
+gender = "female"
+
+[sprites]
+neutral = ["normal"]
+positive = ["pumped", "shining"]
+negative = ["pumped", "sad"]

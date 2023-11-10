@@ -1,0 +1,8 @@
+display_name = "Klavier"
+location = "right"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "snaps"]
+positive = ["normal", "lean", "snaps"]
+negative = ["fist", "fist-sweat", "objection", "pounds", "nervous", "sweats", "up"]

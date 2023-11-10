@@ -1,0 +1,10 @@
+display_name = "Pearl" # Name of the character that would normally appear in-game
+location = "center" # "left", "right", "center", etc
+gender = "female" # "male" or "female" (used to determine text-click sounds)
+is_child = true
+
+# Arrays of strings for neutral, positive, and negative emotions
+[sprites]
+neutral = ["normal", "shy", "thinking"]
+positive = ["cheerful", "sparkle", "surprised"]
+negative = ["cries", "disappointed", "fight", "surprised"]

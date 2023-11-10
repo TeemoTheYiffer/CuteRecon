@@ -1,0 +1,8 @@
+display_name = "Maya"
+location = "center"
+gender = "female"
+
+[sprites]
+neutral = ["normal", "thinking"]
+positive = ["pumped", "cheerful", "confident"]
+negative = ["pumped", "crying", "disheartened", "mad", "sad", "surprised", "thinking", "worried"]

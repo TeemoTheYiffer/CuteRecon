@@ -1,0 +1,9 @@
+{
+    "location": "left",
+    "gender": "male",
+    "sprites": {
+        "neutral": ["document", "handsondesk", "normal", "pointing", "thinking"],
+        "positive": ["coffee", "confident", "sheepish"],
+        "negative": ["sweating", "handsondesk", "pointing", "sheepish"]
+    }
+}

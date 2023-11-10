@@ -1,0 +1,10 @@
+{
+    "name" : "Aniscan",
+    "author": "Teemo the Yiffer",
+    "description": "Scans anime screen capture and retrieves anime it belongs to.",
+    "install_msg": "Installing Teemo's anime scanning cog",
+    "short": "Scans anime capture for retrieval",
+    "tags" : ["anime", "scan","retrieve"],
+    "requirements" : ["webull"],
+    "end_user_data_statement": "This cog does not persistently store data or metadata about users."
+  }

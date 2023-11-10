@@ -1,0 +1,8 @@
+display_name = "Gumshoe"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "side", "thinking"]
+positive = ["confident", "laughing", "pumped"]
+negative = ["disheartened", "mad"]

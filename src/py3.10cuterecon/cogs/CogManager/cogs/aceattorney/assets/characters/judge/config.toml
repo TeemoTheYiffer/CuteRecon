@@ -1,0 +1,8 @@
+display_name = "Judge"
+location = "judge"
+gender = "male"
+
+[sprites]
+neutral = ["normal"]
+positive = ["surprised"]
+negative = ["warning"]

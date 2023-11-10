@@ -1,0 +1,8 @@
+display_name = "Meekins"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["punch", "saluting"]
+positive = ["megaphone", "punch", "saluting", "thoughtful"]
+negative = ["megaphone", "punch", "sad", "saluting"]

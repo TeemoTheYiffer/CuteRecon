@@ -1,0 +1,8 @@
+display_name = "Uncle"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "side", "thoughtful"]
+positive = ["normal", "side", "thoughtful"]
+negative = ["angry"]

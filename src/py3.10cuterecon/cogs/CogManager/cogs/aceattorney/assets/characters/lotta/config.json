@@ -1,0 +1,9 @@
+{
+    "location": "witness",
+    "gender": "female",
+    "sprites": {
+        "neutral": ["normal", "thinking"],
+        "positive": ["confident", "shy", "smiling"],
+        "negative": ["badmood", "disappointed", "mad"]
+    }
+}

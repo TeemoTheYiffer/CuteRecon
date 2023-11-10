@@ -1,0 +1,8 @@
+display_name = "Oldbag"
+location = "center"
+gender = "female"
+
+[sprites]
+neutral = ["normal"]
+positive = ["inlove", "teehee"]
+negative = ["mad", "teasing"]

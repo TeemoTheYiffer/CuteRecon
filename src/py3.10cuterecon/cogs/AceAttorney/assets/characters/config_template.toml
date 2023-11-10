@@ -1,0 +1,9 @@
+display_name = "" # Name of the character that would normally appear in-game
+location = "" # "left", "right", "center", etc
+gender = "" # "male" or "female" (used to determine text-click sounds)
+
+# Arrays of strings for neutral, positive, and negative emotions
+[sprites]
+neutral = []
+positive = []
+negative = []

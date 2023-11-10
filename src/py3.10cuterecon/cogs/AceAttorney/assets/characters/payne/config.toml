@@ -1,0 +1,12 @@
+display_name = "Payne"
+location = "right"
+gender = "male"
+
+[sprites]
+neutral = ["normal"]
+positive = ["confident"]
+negative = ["sweating"]
+
+
+# NOTES:
+# - "normal" animation is only talking

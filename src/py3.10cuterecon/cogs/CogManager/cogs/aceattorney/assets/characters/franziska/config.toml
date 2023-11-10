@@ -1,0 +1,8 @@
+display_name = "von Karma"
+location = "right"
+gender = "female"
+
+[sprites]
+neutral = ["clench", "normal", "ready"]
+positive = ["tisk", "normal"]
+negative = ["mad", "sweating", "withwhip"]

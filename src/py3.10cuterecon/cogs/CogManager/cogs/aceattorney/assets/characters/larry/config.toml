@@ -1,0 +1,8 @@
+display_name = "Larry"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "scratch", "thinking"]
+positive = ["hello", "stylish"]
+negative = ["mad", "nervous", "thumbsup"]

@@ -1,0 +1,8 @@
+display_name = "Edgeworth"
+location = "right"
+gender = "male"
+
+[sprites]
+neutral = ["document", "normal", "pointing", "thinking"]
+positive = ["confident", "pointing"]
+negative = ["handondesk", "strained"]

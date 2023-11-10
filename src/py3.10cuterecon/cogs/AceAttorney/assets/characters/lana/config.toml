@@ -1,0 +1,9 @@
+display_name = "Lana"
+location = "center"
+gender = "female"
+
+[sprites]
+neutral = ["normal", "sideglance"]
+positive = ["ohmy", "smiling"]
+negative = ["forceful", "mad", "ohmy", "profile", "sideglance", "sweating"]
+spoiler = ["smiling"]

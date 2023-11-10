@@ -1,0 +1,8 @@
+display_name = "Powers"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal"]
+positive = ["normal"]
+negative = ["hanky", "nervous", "thinking"]

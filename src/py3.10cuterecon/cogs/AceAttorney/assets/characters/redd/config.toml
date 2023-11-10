@@ -1,0 +1,8 @@
+display_name = "White"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal"]
+positive = ["mymy", "normal"]
+negative = ["shouting", "sweating", "thinking"]

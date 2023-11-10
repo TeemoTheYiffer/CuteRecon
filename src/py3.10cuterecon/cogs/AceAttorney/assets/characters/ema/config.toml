@@ -1,0 +1,8 @@
+display_name = "Ema"
+location = "center"
+gender = "female"
+
+[sprites]
+neutral = ["normal", "notes", "serious", "thinking"]
+positive = ["cheerful", "confident", "pumped", "surprised"]
+negative = ["disappointed", "mad", "pumped", "sad", "serious", "surprised", "thinking"]

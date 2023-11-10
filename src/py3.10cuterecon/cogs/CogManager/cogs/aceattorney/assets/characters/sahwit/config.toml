@@ -1,0 +1,8 @@
+display_name = "Sahwit"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal"]
+positive = ["normal"]
+negative = ["glaring", "twitching"]

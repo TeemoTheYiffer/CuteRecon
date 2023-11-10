@@ -1,0 +1,8 @@
+display_name = "Marshall"
+location = "center"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "serious", "shave"]
+positive = ["shave", "smirk"]
+negative = ["mad", "serious", "smirk"]

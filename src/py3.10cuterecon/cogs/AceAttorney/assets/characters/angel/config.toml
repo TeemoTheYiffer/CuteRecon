@@ -1,0 +1,9 @@
+display_name = "Angel"
+location = "center"
+gender = "female"
+
+[sprites]
+neutral = ["lunch", "normal"]
+positive = ["lunch", "smiling"]
+negative = ["mad", "queen", "sweating"]
+spoiler = []

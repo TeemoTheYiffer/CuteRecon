@@ -1,0 +1,8 @@
+display_name = "Vasquez"
+location = "center"
+gender = "female"
+
+[sprites]
+neutral = ["normal", "coldsmile"]
+positive = ["confessing", "coldsmile"]
+negative = ["coldsmile", "sweating"]

@@ -1,0 +1,9 @@
+display_name = "von Karma"
+location = "right"
+gender = "male"
+
+[sprites]
+neutral = ["normal", "badmood"]
+positive = ["normal", "smirk"]
+negative = ["badmood", "sweat", "break", "snap"]
+spoiler = ["break"]
