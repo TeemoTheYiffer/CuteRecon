@@ -104,5 +104,5 @@ venv.bak/
 .mypy_cache/
 
 # Custom
-py3.10cuterecon/core
-py3.11cuterecon/core
+py3.10cuterecon/core/
+py3.11cuterecon/core/
