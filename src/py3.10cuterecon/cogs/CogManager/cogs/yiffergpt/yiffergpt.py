@@ -9,15 +9,17 @@ import logging
 from io import BytesIO
 import cv2  # We're using OpenCV to read video
 import base64
+from collections import defaultdict
 import requests
 from .constants import CHATTY_INSTRUCTIONS, OPENAI_API_KEY
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
 logging.basicConfig(level=logging.DEBUG)
 openai.api_key = OPENAI_API_KEY
-conversations = {}
-MAX_HISTORY = 2 * 2  # 2 pairs of user and assistant messages
+conversations = defaultdict(lambda : defaultdict(list))
+MAX_HISTORY = 20 
 TTS_VOICE = "onyx"
+INSTRUCTIONS = "You're a Discord user named 'Cute Recon' in a Discord server to assist other users."
 is_busy = False
 __author__ = "Teemo the Yiffer"
 
@@ -57,16 +59,6 @@ class YifferGPT(commands.Cog):
         os.remove(temp_image)
         return output
 
-    def change_voice(self, message):
-        message = message.replace("!voice ",'')
-        global TTS_VOICE
-        valid_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-        if message.lower() in valid_voices:
-            TTS_VOICE = message.lower()
-            return (f"Voice changed to {TTS_VOICE}. 🤖" )
-        else:
-            return (f"🤖 Please use alloy, echo, fable, onyx, nova, or shimmer. CURRENT VOICE: {TTS_VOICE}  MORE INFO:  <https://platform.openai.com/docs/guides/text-to-speech>"  )
-
     def openai_tts(self, input):
         url = "https://api.openai.com/v1/audio/speech"
         headers = {
@@ -86,28 +78,36 @@ class YifferGPT(commands.Cog):
             # Handle errors
             return f"Error: {response.status_code} - {response.text}"
 
-    def ask_gpt(self, model, author_id, message_text, 
-                instructions = "You're a Discord user <#526274194997248000> named 'Cute Recon' in a Discord server to assist other users."):
-        if author_id not in conversations:
-            conversations[author_id] = []
-            
-        # Append the user's message to the conversation history
-        conversations[author_id].append({"role": "user", "content": message_text})
-        
+    def ask_gpt(self, model, message, instruction=INSTRUCTIONS, combined_input=None, history=True):
+        # Use a defaultdict where each value defaults to another defaultdict that defaults to an empty list
+        global conversations
+        if message.author.id not in conversations:
+            conversations[message.author.id] = defaultdict(list)
+
         # Limit the conversation history
-        conversations[author_id] = conversations[author_id][-MAX_HISTORY:]
+        conversations[message.author.id][message.channel.id] = conversations[message.author.id][message.channel.id][-MAX_HISTORY:]
+        if combined_input:
+            message_text = combined_input
+        else:
+            message_text = message.content
+        if history:
+            # Append the user's message to the conversation history
+            conversations[message.author.id][message.channel.id].append({"role": "user", "content": message_text})
+            history = conversations[message.author.id][message.channel.id]
+        else:
+            history = [{"role": "user", "content": message_text}]
+        prompt = [
+                    {
+                        "role": "system",
+                        "content": instruction
+                    },
+                    *history
+                ]
+
         try:
             response = openai.ChatCompletion.create(
                 model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": instructions
-                    },
-                    {
-                        "role": "user", "content": message_text
-                    }
-                ],
+                messages=prompt,
                 temperature=0.8,
                 max_tokens=2048, # Max Tokens 4,096
                 top_p=1,
@@ -116,60 +116,75 @@ class YifferGPT(commands.Cog):
             )
         except Exception as e:
             return f"Error: {e}"
+        
         # Extract the assistant's response
         assistant_message = response['choices'][0]['message']['content'].strip()
         
         # Append the assistant's response to the conversation history
-        conversations[author_id].append({"role": "assistant", "content": assistant_message})
+        conversations[message.author.id][message.channel.id].append({"role": "assistant", "content": assistant_message})
 
-        # Ensure the conversation history is still within the limit after adding the assistant's response
-        conversations[author_id] = conversations[author_id][-MAX_HISTORY:]
+        # Re-writing history images to post_filler_image_url
+        for message in conversations[message.author.id][message.channel.id]:
+            if 'content' in message and isinstance(message['content'], list):
+                for content_item in message['content']:
+                    if isinstance(content_item, dict) and content_item.get('type') == 'image_url':
+                        logging.info("Overwriting URL...")  # For debugging
+                        content_item['image_url']['url'] = 'post_filler_image_url'
+
         return assistant_message
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        if message.author == self.bot.user:
+            return
         if self.bot.user.id != message.author.id:
             global is_busy
             if message.channel.id == 1105033083956248576: # regular chatgpt
                 if is_busy:
                     print(f"ChatGPT responding to {message.author.id}.")
                     return
-                if message.author == self.bot.user:
-                    return
-                
-                user_query = message.content[5:].strip()
                 async with message.channel.typing():
-                    response = self.ask_gpt("gpt-4-1106-preview", message.author.id, user_query, CHATTY_INSTRUCTIONS)
+                    response = self.ask_gpt("gpt-4-1106-preview", message, CHATTY_INSTRUCTIONS)
                 await message.channel.send(response)
             if message.channel.id == 1171379225278820391: # vision
                 if is_busy:
                     print(f"ChatGPT responding to {message.author.id}.")
                     return
-                if message.author == self.bot.user:
-                    return
-                
-                user_query = message.content[5:].strip()
                 async with message.channel.typing():
-                    response = self.ask_gpt("gpt-4-vision-preview", message.author.id, user_query)
+                    if message.attachments:
+                        attachment = message.attachments[0].url
+                        ext = message.attachments[0].url.split("/")[-1]
+                        #async with self.session.get(attachment) as resp:
+                        base64_image = base64.b64encode(requests.get(attachment).content).decode('utf-8')
+                        #file = discord.File(BytesIO(data),filename=ext)
+                        extra = [
+                                    {
+                                        "type": "text",
+                                        "text": message.content
+                                    },
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                        }
+                                    }
+                                ]
+                    else:
+                        extra = {}
+                    response = self.ask_gpt("gpt-4-vision-preview", message, combined_input=extra)
                 await message.channel.send(response)
             if message.channel.id == 1171382069482508389: # tts
                 if is_busy: 
                     print(f"ChatGPT responding to {message.author.id}.")
                     return
-                if message.author == self.bot.user:
-                    return
-                if message.content.startswith("!voice"):
-                    await message.channel.send(self.change_voice(message.content))
-                    return
                 
-                user_query = message.content[5:].strip()
+                user_query = message.content
                 async with message.channel.typing():
                     attachment = message.attachments[0].url
                     ext = message.attachments[0].url.split("/")[-1]
                     async with self.session.get(attachment) as resp:
                         data = await resp.read()
-                    video_file = discord.File(BytesIO(data),filename=ext)
-                    logging.info(attachment)
+                    #video_file = discord.File(BytesIO(data),filename=ext)
                     video = cv2.VideoCapture(attachment)
                     base64Frames = []
                     while video.isOpened():
@@ -187,9 +202,44 @@ class YifferGPT(commands.Cog):
                                 user_query,
                                 *map(lambda x: {"image": x, "resize": 768}, base64Frames[0::10]),
                             ]
-                    result = self.ask_gpt("gpt-4-vision-preview", message.author.id, combined_input)
+                    instruction = "You're a Discord user named 'Cute Recon' who works as a voice actor. While you're great at reading scripts and descriptions of scenes, you excel in creatively telling them."
+                    result = self.ask_gpt("gpt-4-vision-preview", message, instruction, combined_input, history=False)
                     audio_data = self.openai_tts(result)
                     if not isinstance(audio_data, str):  # Check if the result is not an error message
                         await message.channel.send(file=discord.File(audio_data, filename="meme" +".mp3"))
                     else:
                         await message.channel.send("Sorry an error occured" + audio_data)
+
+    @commands.command()
+    async def voice(self, ctx, new_voice):
+        #message = ctx.message.content
+        #message = message.replace("!voice ",'')
+        global TTS_VOICE
+        valid_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+        if new_voice.lower() in valid_voices:
+            TTS_VOICE = new_voice.lower()
+            return await ctx.channel.send(f"Voice changed to {TTS_VOICE}. 🤖" )
+        else:
+            return await ctx.channel.send(f"🤖 Please use alloy, echo, fable, onyx, nova, or shimmer. CURRENT VOICE: {TTS_VOICE}  MORE INFO:  <https://platform.openai.com/docs/guides/text-to-speech>"  )
+    
+    @commands.command()
+    async def get_voice(self, ctx):
+        return await ctx.channel.send(f"Current TTS Voice: `{TTS_VOICE}`" )
+
+    @commands.command()
+    async def instruction(self, ctx):
+        new_instructions = ctx.message.content.replace("!instruction ",'')
+        INSTRUCTIONS = new_instructions
+        return await ctx.channel.send(f"Done! My new instructions are: `{INSTRUCTIONS}`" )
+
+    @commands.command()
+    async def get_instruction(self, ctx):
+        return await ctx.channel.send(f"Current Instructions: `{INSTRUCTIONS}`" )
+
+    @commands.command()
+    async def get_history(self, ctx):
+        if ctx.message.author.id not in conversations:
+            return await ctx.channel.send(f"Found no conversation history from the AI Bot Channels." )
+        else:
+            logging.info(conversations)
+            return await ctx.channel.send(f"Found your conversation history:\n ```{conversations[ctx.message.author.id]}```" )
