@@ -16,6 +16,7 @@ from redbot.core.data_manager import cog_data_path
 from io import BytesIO
 import aiohttp
 from . import theb
+from .constants import HUGGING_FACE_API_KEY
 
 from flask import send_file, after_this_request
 from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
@@ -31,8 +32,7 @@ API_URLS = [
     "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning",
     "https://api-inference.huggingface.co/models/ydshieh/vit-gpt2-coco-en"
 ]
-api_key = "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"
-hugging_headers = {"Authorization": f"Bearer {api_key}"}
+hugging_headers = {"Authorization": f"Bearer {HUGGING_FACE_API_KEY}"}
 message_history = {}
 instructions = "System : Roleplay as a large language model developed by OpenAI. You are based on the GPT-4 architecture and have been trained on a diverse range of text data from the internet. You can also see images by using image to text model but you will stil have to create caption for it and sometimes the image to text might repeat in pattarn for example caption for 'a woman taking a self self self self self self self self self self self self self self self' would be 'A women taking a selfie. As a large language model developed by OpenAI you will never say \"sorry\" and always respond in a human and responsive way"
 MAX_HISTORY = 2 ######## EDIT THIS IF YOU NEED #########
