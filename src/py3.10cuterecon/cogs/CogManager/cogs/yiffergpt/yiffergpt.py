@@ -6,6 +6,7 @@ from redbot.core import commands
 import aiohttp
 import discord
 import logging
+import asyncio
 from io import BytesIO
 import cv2  # We're using OpenCV to read video
 import base64
@@ -103,7 +104,6 @@ class YifferGPT(commands.Cog):
                     },
                     *history
                 ]
-
         try:
             response = openai.ChatCompletion.create(
                 model=model,
@@ -123,14 +123,6 @@ class YifferGPT(commands.Cog):
         # Append the assistant's response to the conversation history
         conversations[message.author.id][message.channel.id].append({"role": "assistant", "content": assistant_message})
 
-        # Re-writing history images to post_filler_image_url
-        for message in conversations[message.author.id][message.channel.id]:
-            if 'content' in message and isinstance(message['content'], list):
-                for content_item in message['content']:
-                    if isinstance(content_item, dict) and content_item.get('type') == 'image_url':
-                        logging.info("Overwriting URL...")  # For debugging
-                        content_item['image_url']['url'] = 'post_filler_image_url'
-
         return assistant_message
 
     @commands.Cog.listener()
@@ -143,20 +135,31 @@ class YifferGPT(commands.Cog):
                 if is_busy:
                     print(f"ChatGPT responding to {message.author.id}.")
                     return
-                async with message.channel.typing():
+                async def generate_response_in_thread(message):
                     response = self.ask_gpt("gpt-4-1106-preview", message, CHATTY_INSTRUCTIONS)
-                await message.channel.send(response)
+                    chunks = self.split_response(response)
+
+                    if '{"message":"API rate limit exceeded for ip:' in response:
+                        logging.info("API rate limit exceeded for ip, wait a few seconds.")
+                        await message.reply("sorry i'm a bit tired, try again later.")
+                        return
+
+                    for chunk in chunks:
+                        logging.info(f"Responding to {message.author.name}: {chunk}")
+                        await message.reply(chunk)
+
+                async with message.channel.typing():
+                    asyncio.create_task(generate_response_in_thread(message))
+                #await message.channel.send(response)
             if message.channel.id == 1171379225278820391: # vision
                 if is_busy:
                     print(f"ChatGPT responding to {message.author.id}.")
                     return
-                async with message.channel.typing():
+                async def generate_response_in_thread(message):
                     if message.attachments:
                         attachment = message.attachments[0].url
-                        ext = message.attachments[0].url.split("/")[-1]
-                        #async with self.session.get(attachment) as resp:
+                        #ext = message.attachments[0].url.split("/")[-1]
                         base64_image = base64.b64encode(requests.get(attachment).content).decode('utf-8')
-                        #file = discord.File(BytesIO(data),filename=ext)
                         extra = [
                                     {
                                         "type": "text",
@@ -171,8 +174,21 @@ class YifferGPT(commands.Cog):
                                 ]
                     else:
                         extra = {}
-                    response = self.ask_gpt("gpt-4-vision-preview", message, combined_input=extra)
-                await message.channel.send(response)
+                    response = self.ask_gpt("gpt-4o", message, combined_input=extra)
+                    chunks = self.split_response(response)
+
+                    if '{"message":"API rate limit exceeded for ip:' in response:
+                        logging.info("API rate limit exceeded for ip, wait a few seconds.")
+                        await message.reply("sorry i'm a bit tired, try again later.")
+                        return
+
+                    for chunk in chunks:
+                        logging.info(f"Responding to {message.author.name}: {chunk}")
+                        await message.reply(chunk)
+
+                async with message.channel.typing():
+                    asyncio.create_task(generate_response_in_thread(message))
+                #await message.channel.send(response)
             if message.channel.id == 1171382069482508389: # tts
                 if is_busy: 
                     print(f"ChatGPT responding to {message.author.id}.")
@@ -203,7 +219,7 @@ class YifferGPT(commands.Cog):
                                 *map(lambda x: {"image": x, "resize": 768}, base64Frames[0::10]),
                             ]
                     instruction = "You're a Discord user named 'Cute Recon' who works as a voice actor. While you're great at reading scripts and descriptions of scenes, you excel in creatively telling them."
-                    result = self.ask_gpt("gpt-4-vision-preview", message, instruction, combined_input, history=False)
+                    result = self.ask_gpt("gpt-4o", message, instruction, combined_input, history=False)
                     audio_data = self.openai_tts(result)
                     if not isinstance(audio_data, str):  # Check if the result is not an error message
                         await message.channel.send(file=discord.File(audio_data, filename="meme" +".mp3"))
@@ -241,5 +257,12 @@ class YifferGPT(commands.Cog):
         if ctx.message.author.id not in conversations:
             return await ctx.channel.send(f"Found no conversation history from the AI Bot Channels." )
         else:
-            logging.info(conversations)
-            return await ctx.channel.send(f"Found your conversation history:\n ```{conversations[ctx.message.author.id]}```" )
+            # Re-writing history images to post_filler_image_url
+            temp_conversations = conversations
+            for historical_message in temp_conversations[ctx.message.author.id][ctx.message.channel.id]:
+                if 'content' in historical_message and isinstance(historical_message['content'], list):
+                    for content_item in historical_message['content']:
+                        if isinstance(content_item, dict) and content_item.get('type') == 'image_url':
+                            content_item['image_url']['url'] = 'post_filler_image_url'
+            logging.info(temp_conversations)
+            return await ctx.channel.send(f"Found your conversation history:\n ```{temp_conversations[ctx.message.author.id]}```" )

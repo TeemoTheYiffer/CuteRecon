@@ -1,42 +1,30 @@
 import discord
-import json
-from discord import Embed
-import inspect
 import random
 import os
 import asyncio
 import httpx
 from discord.ext import commands
 from redbot.core.utils.chat_formatting import warning, error, info
-from discord.utils import get
 from redbot.core import commands
-from redbot.core import checks
-from redbot.core import Config
 from redbot.core.data_manager import cog_data_path
 from io import BytesIO
 import aiohttp
-from . import theb
-from .constants import HUGGING_FACE_API_KEY
+import re
+#from .constants import HUGGING_FACE_API_KEY
 
-from flask import send_file, after_this_request
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
-from moviepy.config import get_setting
 from PIL import Image, ImageDraw, ImageOps
 import logging
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
 logging.basicConfig(level=logging.DEBUG)
-API_URLS = [
-    "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large",
-    "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base",
-    "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning",
-    "https://api-inference.huggingface.co/models/ydshieh/vit-gpt2-coco-en"
-]
-hugging_headers = {"Authorization": f"Bearer {HUGGING_FACE_API_KEY}"}
-message_history = {}
-instructions = "System : Roleplay as a large language model developed by OpenAI. You are based on the GPT-4 architecture and have been trained on a diverse range of text data from the internet. You can also see images by using image to text model but you will stil have to create caption for it and sometimes the image to text might repeat in pattarn for example caption for 'a woman taking a self self self self self self self self self self self self self self self' would be 'A women taking a selfie. As a large language model developed by OpenAI you will never say \"sorry\" and always respond in a human and responsive way"
-MAX_HISTORY = 2 ######## EDIT THIS IF YOU NEED #########
-is_busy = False
+#API_URLS = [
+#    "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large",
+#    "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base",
+#    "https://api-inference.huggingface.co/models/nlpconnect/vit-gpt2-image-captioning",
+#    "https://api-inference.huggingface.co/models/ydshieh/vit-gpt2-coco-en"
+#]
+#hugging_headers = {"Authorization": f"Bearer {HUGGING_FACE_API_KEY}"}
+
 __author__ = "Teemo the Yiffer"
 
 class Yiffertools(commands.Cog):
@@ -81,107 +69,33 @@ class Yiffertools(commands.Cog):
                             inline=False)
             await member.send(embed=embed)
 
-    async def generate_response(self, prompt):
-        response = theb.Completion.create(prompt)
-        if not response:
-            response = "I couldn't generate a response. Please try again."
-        return ''.join(token for token in response)
-    
-    def split_response(self, response, max_length=1900):
-        words = response.split()
-        chunks = []
-        current_chunk = []
-
-        for word in words:
-            if len(" ".join(current_chunk)) + len(word) + 1 > max_length:
-                chunks.append(" ".join(current_chunk))
-                current_chunk = [word]
-            else:
-                current_chunk.append(word)
-
-        if current_chunk:
-            chunks.append(" ".join(current_chunk))
-
-        return chunks
-
     async def download_image(self, image_url, save_as):
         async with httpx.AsyncClient() as client:
             response = await client.get(image_url)
         with open(save_as, "wb") as f:
             f.write(response.content)
 
-    async def process_image_link(self, image_url):
-        temp_image = "temp_image.jpg"
-        await self.download_image(image_url, temp_image)
-        output = await self.query(temp_image)
-        os.remove(temp_image)
-        return output
-
-    async def fetch_response(self, client, api_url, data):
-        response = await client.post(api_url, headers=hugging_headers, data=data, timeout=30)
-        
-        if response.status_code != 200:
-            raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
-        
-        return response.json()
-
-    async def query(self, filename):
-        with open(filename, "rb") as f:
-            data = f.read()
-
-        async with httpx.AsyncClient() as client:
-            tasks = [self.fetch_response(client, api_url, data) for api_url in API_URLS]
-            responses = await asyncio.gather(*tasks, return_exceptions=True)
-
-        return responses
-
     @commands.Cog.listener()
     async def on_message(self, message):
         if self.bot.user.id != message.author.id:
-            if message.channel.id == 1105033083956248576:
-                channel = self.bot.get_channel(1105033083956248576)
-                global is_busy
-                if is_busy:
-                    return
-                if message.author.bot:
-                    author_id = str(self.bot.user.id)
-                else:
-                    author_id = str(message.author.id)
 
-                if author_id not in message_history:
-                    message_history[author_id] = []
-
-                message_history[author_id].append(message.content)
-                message_history[author_id] = message_history[author_id][-MAX_HISTORY:]
-
-                is_busy = True
-                has_image = False
-                image_caption = ""
-                if message.attachments:
-                    for attachment in message.attachments:
-                        if attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', 'webp')):
-                            is_busy = False
-                            caption =  await self.process_image_link(attachment.url)
-                            has_image = True
-                            image_caption = f"\n[System : This how the caption is ranked 1st is main 2nd is secondary and 3rd is fallback model which  will gives worst caption one some cases. 1st and 2nd model sometimes takes a while to load so ignore that if any error happens. Here is the image captions for the image user has sent :{caption}]"
-                            print(caption)
-                            break
-
-                if has_image:
-                    bot_prompt = f"{instructions}\n[System : Image context will be provided. Generate an caption with a response for it]"
-                else:
-                    bot_prompt = f"{instructions}"
-
-                user_prompt = "\n".join(message_history[author_id])
-                prompt = f"{bot_prompt}\n{user_prompt}\n{message.author.name}: {message.content}\n{image_caption}\n{self.bot.user.name}:"
-                async with message.channel.typing():
-                    response = await self.generate_response(prompt)
-
-                is_busy = False
-                chunks = self.split_response(response)
-
-                for chunk in chunks:
-                    await message.reply(chunk)
+            #if re.findall(r'<\w*:\w*\w(NSFW)\:\d*>', message.content):
+            #    if message.channel.id == 482065536461701130:
+            #        await message.delete()
+            #        await message.channel.send(f"{message.author.mention} That's lewd!")
+            #        url = "https://cdn.discordapp.com/emojis/507796005580963840.gif?v=1"
+            #        async with self.session.get(url) as resp:
+            #            data = await resp.read()
+            #        file = discord.File(BytesIO(data),filename="507796005580963840.gif")
+            #        await message.channel.send(file=file)
+            if self.bot.user.mentioned_in(message):
+                if (re.findall(r"(?i)(good)", message.content) or re.findall(r"(?i)(cute)", message.content)) and re.findall(r"(?i)(boy)", message.content):
+                    initial_msg = await message.channel.send(f"{message.author.mention} T-Thank you!")
+                    path = cog_data_path(self) / "images/cute_recon_blush.gif"
+                    image_msg = await message.channel.send(file=discord.File(path))
+                    await asyncio.sleep(120)
+                    await initial_msg.delete()
+                    await image_msg.delete()
 
                 #await channel.send(content=response)
             #if message.channel.id == 549016005481857055:
@@ -279,23 +193,7 @@ class Yiffertools(commands.Cog):
             #            await message.delete()
             #    except:
             #        await message.delete()
-            #if re.findall(r'<\w*:\w*\w(NSFW)\:\d*>', message.content):
-            #    if message.channel.id == 482065536461701130:
-            #        await message.delete()
-            #        await message.channel.send(f"{message.author.mention} That's lewd!")
-            #        url = "https://cdn.discordapp.com/emojis/507796005580963840.gif?v=1"
-            #        async with self.session.get(url) as resp:
-            #            data = await resp.read()
-            #        file = discord.File(BytesIO(data),filename="507796005580963840.gif")
-            #        await message.channel.send(file=file)
-            #if self.bot.user.mentioned_in(message):
-            #    if (re.findall(r"(?i)(good)", message.content) or re.findall(r"(?i)(cute)", message.content)) and re.findall(r"(?i)(boy)", message.content):
-            #        initial_msg = await message.channel.send(f"{message.author.mention} T-Thank you!")
-            #        path = cog_data_path(self) / "images/cute_recon_blush.gif"
-            #        image_msg = await message.channel.send(file=discord.File(path))
-            #        await asyncio.sleep(120)
-            #        await initial_msg.delete()
-            #        await image_msg.delete()
+
             #if re.findall(r"(?i)(dead)", message.content) and re.findall(r"(?i)(chat)", message.content):
             #    initial_msg = await message.channel.send(f"Hey {message.author.mention}, this is for you.")
             #    path =  cog_data_path(self) / "images/dead_chat.png"
