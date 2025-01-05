@@ -1,0 +1,16 @@
+.
+  |-__pycache__
+  |  |-__init__.cpython-310.opt-1.pyc
+  |  |-base.cpython-310.opt-1.pyc
+  |  |-constants.cpython-310.opt-1.pyc
+  |  |-yiffergpt.cpython-310.opt-1.pyc
+  |-constants.py
+  |-__init__.py
+  |-.env
+  |-configs
+  |  |-bot-chatty_config.yaml
+  |  |-base_config.yaml
+  |-yiffergpt.py
+  |-info.json
+  |-tree.txt
+  |-base.py

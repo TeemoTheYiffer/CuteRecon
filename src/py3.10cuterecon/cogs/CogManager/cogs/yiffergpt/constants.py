@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 import os
 import dacite
 import yaml
-from typing import Dict, List
 from .base import Config
 
 load_dotenv()
@@ -12,9 +11,16 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 CONFIG: Config = dacite.from_dict(
     Config, yaml.safe_load(open(os.path.join(SCRIPT_DIR, "configs/base_config.yaml"), "r"))
 )
+TTS_CONFIG: Config = dacite.from_dict(
+    Config, yaml.safe_load(open(os.path.join(SCRIPT_DIR, "configs/bot-tts_config.yaml"), "r"))
+)
 CHATTY_CONFIG: Config = dacite.from_dict(
     Config, yaml.safe_load(open(os.path.join(SCRIPT_DIR, "configs/bot-chatty_config.yaml"), "r"))
 )
+CLAUDE_CONFIG: Config = dacite.from_dict(
+    Config, yaml.safe_load(open(os.path.join(SCRIPT_DIR, "configs/bot-claude_config.yaml"), "r"))
+)
+
 BOT_NAME = CONFIG.name
 CHATTY_INSTRUCTIONS = CHATTY_CONFIG.instructions
 CHATTY_EXAMPLE_CONVERSATIONS = CHATTY_CONFIG.example_conversations
@@ -22,6 +28,8 @@ CHATTY_EXAMPLE_CONVERSATIONS = CHATTY_CONFIG.example_conversations
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_CLIENT_ID = os.environ["DISCORD_CLIENT_ID"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+OPENAI_ORGANIZATION = os.environ["OPENAI_ORGANIZATION"]
+ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
 #ALLOWED_SERVER_IDS: List[int] = []
 #server_ids = os.environ["ALLOWED_SERVER_IDS"].split(",")

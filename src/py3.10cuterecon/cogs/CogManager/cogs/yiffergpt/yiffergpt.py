@@ -1,268 +1,265 @@
-import os
-import openai
-import httpx
-from discord.ext import commands
+﻿import os
+import asyncio
 from redbot.core import commands
 import aiohttp
-import discord
-import logging
-import asyncio
-from io import BytesIO
-import cv2  # We're using OpenCV to read video
-import base64
-from collections import defaultdict
-import requests
-from .constants import CHATTY_INSTRUCTIONS, OPENAI_API_KEY
-THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
+from .openai_handler import OpenAIHandler
+from .claude import ClaudeHandler
+from .utils import send_discord_message, send_discord_file
+from .utils.logger_utils import setup_logger
+from .eleven_labs_handler import ElevenLabsHandler  
+from .constants import TTS_CONFIG 
 
-logging.basicConfig(level=logging.DEBUG)
-openai.api_key = OPENAI_API_KEY
-conversations = defaultdict(lambda : defaultdict(list))
-MAX_HISTORY = 20 
-TTS_VOICE = "onyx"
-INSTRUCTIONS = "You're a Discord user named 'Cute Recon' in a Discord server to assist other users."
-is_busy = False
-__author__ = "Teemo the Yiffer"
+THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 
 class YifferGPT(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.use_reactions = True
         self.session = aiohttp.ClientSession(loop=self.bot.loop)
-    
-    def split_response(self, response, max_length=1900):
-        words = response.split()
-        chunks = []
-        current_chunk = []
+        self.openai_handler = OpenAIHandler()
+        self.claude_handler = ClaudeHandler()
+        self.eleven_labs_handler = ElevenLabsHandler(bot)
+        self.is_busy = False
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        log_file = os.path.join(current_dir, 'logs', 'discord.log')
+        
+        self.logger = setup_logger(
+            'discord',
+            log_file=log_file,
+            level=20  # logging.INFO / 10=logging.debug
+        )
 
-        for word in words:
-            if len(" ".join(current_chunk)) + len(word) + 1 > max_length:
-                chunks.append(" ".join(current_chunk))
-                current_chunk = [word]
-            else:
-                current_chunk.append(word)
-
-        if current_chunk:
-            chunks.append(" ".join(current_chunk))
-
-        return chunks
-
-    async def download_image(self, image_url, save_as):
-        async with httpx.AsyncClient() as client:
-            response = await client.get(image_url)
-        with open(save_as, "wb") as f:
-            f.write(response.content)
-
-    async def process_image_link(self, image_url):
-        temp_image = "temp_image.jpg"
-        await self.download_image(image_url, temp_image)
-        output = await self.query(temp_image)
-        os.remove(temp_image)
-        return output
-
-    def openai_tts(self, input):
-        url = "https://api.openai.com/v1/audio/speech"
-        headers = {
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "model": "tts-1-hd",
-            "input": input,
-            "voice": TTS_VOICE
-        }
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code == 200:
-            # Instead of saving the file, we return a BytesIO object so it can run anywhere
-            return BytesIO(response.content)
-        else:
-            # Handle errors
-            return f"Error: {response.status_code} - {response.text}"
-
-    def ask_gpt(self, model, message, instruction=INSTRUCTIONS, combined_input=None, history=True):
-        # Use a defaultdict where each value defaults to another defaultdict that defaults to an empty list
-        global conversations
-        if message.author.id not in conversations:
-            conversations[message.author.id] = defaultdict(list)
-
-        # Limit the conversation history
-        conversations[message.author.id][message.channel.id] = conversations[message.author.id][message.channel.id][-MAX_HISTORY:]
-        if combined_input:
-            message_text = combined_input
-        else:
-            message_text = message.content
-        if history:
-            # Append the user's message to the conversation history
-            conversations[message.author.id][message.channel.id].append({"role": "user", "content": message_text})
-            history = conversations[message.author.id][message.channel.id]
-        else:
-            history = [{"role": "user", "content": message_text}]
-        prompt = [
-                    {
-                        "role": "system",
-                        "content": instruction
-                    },
-                    *history
-                ]
+    async def handle_elevenlabs_tts(self, message):
+        """Handle text-to-speech using websocket streaming."""
         try:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=prompt,
-                temperature=0.8,
-                max_tokens=2048, # Max Tokens 4,096
-                top_p=1,
-                frequency_penalty=0,
-                presence_penalty=0
-            )
-        except Exception as e:
-            return f"Error: {e}"
-        
-        # Extract the assistant's response
-        assistant_message = response['choices'][0]['message']['content'].strip()
-        
-        # Append the assistant's response to the conversation history
-        conversations[message.author.id][message.channel.id].append({"role": "assistant", "content": assistant_message})
+            if not message.author.voice or not message.author.voice.channel:
+                await message.channel.send("Please join a voice channel first! 🎙️")
+                return
 
-        return assistant_message
+            voice_channel = message.author.voice.channel
+            status_msg = await message.channel.send("🎯 Processing your request...")
+
+            try:
+                # Connect to voice while getting OpenAI response
+                voice_client = await self.eleven_labs_handler.connect_to_voice(voice_channel)
+                
+                # Get streaming response from OpenAI
+                response_stream = await self.openai_handler.ask_gpt(
+                    message,
+                    instruction=TTS_CONFIG.instructions,
+                    history=False,
+                    stream=True
+                )
+
+                await status_msg.edit(content="🎙️ Starting voice stream...")
+
+                # Create an async generator that yields text chunks
+                async def text_iterator():
+                    complete_text = ""
+                    async for text in response_stream:
+                        if text:
+                            complete_text += text
+                            yield text
+                    
+                    # Store the complete response
+                    await message.channel.send(complete_text)
+
+                # Stream directly to Discord voice
+                await self.eleven_labs_handler.stream_to_discord(
+                    text_iterator(),
+                    voice_client
+                )
+
+                # Clean up
+                await status_msg.delete()
+                await self.eleven_labs_handler.disconnect_from_voice(message.guild.id)
+
+            except Exception as e:
+                await status_msg.edit(content=f"❌ Error: {str(e)}")
+                self.logger.error(f"Error in TTS: {str(e)}", exc_info=True)
+
+        except Exception as e:
+            self.logger.error(f"Error in message handling: {str(e)}", exc_info=True)
+
+    @commands.command()
+    async def leave_voice(self, ctx):
+        """Command to make the bot leave the voice channel."""
+        try:
+            await self.eleven_labs_handler.disconnect_from_voice(ctx.guild.id)
+            await ctx.send("Left the voice channel! 👋")
+        except Exception as e:
+            await ctx.send(f"Error leaving voice channel: {str(e)}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        """Main message handler that routes to appropriate AI service."""
         if message.author == self.bot.user:
             return
-        if self.bot.user.id != message.author.id:
-            global is_busy
-            if message.channel.id == 1105033083956248576: # regular chatgpt
-                if is_busy:
-                    print(f"ChatGPT responding to {message.author.id}.")
-                    return
-                async def generate_response_in_thread(message):
-                    response = self.ask_gpt("gpt-4-1106-preview", message, CHATTY_INSTRUCTIONS)
-                    chunks = self.split_response(response)
 
-                    if '{"message":"API rate limit exceeded for ip:' in response:
-                        logging.info("API rate limit exceeded for ip, wait a few seconds.")
-                        await message.reply("sorry i'm a bit tired, try again later.")
-                        return
+        if self.is_busy:
+            self.logger.info(f"Bot is busy, skipping message from {message.author.id}")
+            return
 
-                    for chunk in chunks:
-                        logging.info(f"Responding to {message.author.name}: {chunk}")
-                        await message.reply(chunk)
+        try:
+            self.is_busy = True
 
-                async with message.channel.typing():
-                    asyncio.create_task(generate_response_in_thread(message))
-                #await message.channel.send(response)
-            if message.channel.id == 1171379225278820391: # vision
-                if is_busy:
-                    print(f"ChatGPT responding to {message.author.id}.")
-                    return
-                async def generate_response_in_thread(message):
-                    if message.attachments:
-                        attachment = message.attachments[0].url
-                        #ext = message.attachments[0].url.split("/")[-1]
-                        base64_image = base64.b64encode(requests.get(attachment).content).decode('utf-8')
-                        extra = [
-                                    {
-                                        "type": "text",
-                                        "text": message.content
-                                    },
-                                    {
-                                        "type": "image_url",
-                                        "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}"
-                                        }
-                                    }
-                                ]
-                    else:
-                        extra = {}
-                    response = self.ask_gpt("gpt-4o", message, combined_input=extra)
-                    chunks = self.split_response(response)
-
-                    if '{"message":"API rate limit exceeded for ip:' in response:
-                        logging.info("API rate limit exceeded for ip, wait a few seconds.")
-                        await message.reply("sorry i'm a bit tired, try again later.")
-                        return
-
-                    for chunk in chunks:
-                        logging.info(f"Responding to {message.author.name}: {chunk}")
-                        await message.reply(chunk)
-
-                async with message.channel.typing():
-                    asyncio.create_task(generate_response_in_thread(message))
-                #await message.channel.send(response)
-            if message.channel.id == 1171382069482508389: # tts
-                if is_busy: 
-                    print(f"ChatGPT responding to {message.author.id}.")
-                    return
+            # Route to appropriate handler based on channel
+            if message.channel.id == 1105033083956248576:  # regular chatgpt
+                await self.handle_openai_chat(message)
+            elif message.channel.id == 1171379225278820391:  # vision
+                await self.handle_openai_vision(message)
+            elif message.channel.id == 1171382069482508389:  # tts
+                await self.handle_openai_tts(message)
+            elif message.channel.id == 1317970533488394261:  # claude-coding
+                await self.handle_claude_chat(message)
+            elif message.channel.id == 1319538789475160074:  # elevenlabs tts
+                await self.handle_elevenlabs_tts(message)
                 
-                user_query = message.content
-                async with message.channel.typing():
-                    attachment = message.attachments[0].url
-                    ext = message.attachments[0].url.split("/")[-1]
-                    async with self.session.get(attachment) as resp:
-                        data = await resp.read()
-                    #video_file = discord.File(BytesIO(data),filename=ext)
-                    video = cv2.VideoCapture(attachment)
-                    base64Frames = []
-                    while video.isOpened():
-                        success, frame = video.read()
-                        if not success:
-                            break
-                        _, buffer = cv2.imencode(".jpg", frame)
-                        base64Frames.append(base64.b64encode(buffer).decode("utf-8"))
+        except Exception as e:
+            self.logger.error(f"Error in message handling: {str(e)}", exc_info=True)
+        finally:
+            self.is_busy = False
 
-                    video.release()
-                    logging.info(len(base64Frames), "frames read.")
-                    if not user_query:
-                        user_query = "These are frames from a video that I want to upload. Generate a compelling description that I can upload along with the video."
-                    combined_input = [
-                                user_query,
-                                *map(lambda x: {"image": x, "resize": 768}, base64Frames[0::10]),
-                            ]
-                    instruction = "You're a Discord user named 'Cute Recon' who works as a voice actor. While you're great at reading scripts and descriptions of scenes, you excel in creatively telling them."
-                    result = self.ask_gpt("gpt-4o", message, instruction, combined_input, history=False)
-                    audio_data = self.openai_tts(result)
-                    if not isinstance(audio_data, str):  # Check if the result is not an error message
-                        await message.channel.send(file=discord.File(audio_data, filename="meme" +".mp3"))
-                    else:
-                        await message.channel.send("Sorry an error occured" + audio_data)
+    # Add voice command for ElevenLabs
+    @commands.command()
+    async def set_eleven_voice(self, ctx, voice_id):
+        """Update ElevenLabs voice ID setting."""
+        try:
+            self.eleven_labs_handler.set_voice(voice_id)
+            await ctx.channel.send(f"ElevenLabs voice changed to {voice_id} 🎙️")
+        except Exception as e:
+            await ctx.channel.send(f"Error changing voice: {str(e)}")
+
+    @commands.command()
+    async def get_eleven_voice(self, ctx):
+        """Get current ElevenLabs voice ID setting."""
+        voice_id = self.eleven_labs_handler.get_voice()
+        await ctx.channel.send(f"Current ElevenLabs voice ID: `{voice_id}`")
+
+    async def handle_openai_vision(self, message):
+        """Handle OpenAI vision-based messages."""
+        async def generate_response():
+            if message.attachments:
+                extra = await self.openai_handler.process_image(
+                    message.attachments[0].url,
+                    message.content
+                )
+                response = await self.openai_handler.ask_gpt(message, combined_input=extra)
+                await send_discord_message(message, response)
+
+        async with message.channel.typing():
+            await asyncio.create_task(generate_response())
+
+    async def handle_openai_tts(self, message):
+        """Handle OpenAI text-to-speech messages."""
+        async def generate_response():
+            if message.attachments:
+                combined_input = await self.openai_handler.process_video(
+                    message.attachments[0].url,
+                    message.content
+                )
+                result = await self.openai_handler.ask_gpt(
+                    message,
+                    combined_input=combined_input,
+                    history=False
+                )
+                audio_data = self.openai_handler.openai_tts(result)
+                await send_discord_file(
+                    message.channel,
+                    audio_data,
+                    "response.mp3"
+                )
+
+        async with message.channel.typing():
+            await asyncio.create_task(generate_response())
+
+    async def handle_openai_chat(self, message):
+        async def generate_response():
+            response = await self.openai_handler.ask_gpt(message)
+            await send_discord_message(message, response)
+
+        async with message.channel.typing():
+            await asyncio.create_task(generate_response())
+
+    async def handle_claude_chat(self, message):
+        async def generate_response():
+            response = await self.claude_handler.ask_claude(message)
+            await send_discord_message(message, response)
+
+        async with message.channel.typing():
+            await asyncio.create_task(generate_response())
 
     @commands.command()
     async def voice(self, ctx, new_voice):
-        #message = ctx.message.content
-        #message = message.replace("!voice ",'')
-        global TTS_VOICE
+        """Update TTS voice setting."""
         valid_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
         if new_voice.lower() in valid_voices:
-            TTS_VOICE = new_voice.lower()
-            return await ctx.channel.send(f"Voice changed to {TTS_VOICE}. 🤖" )
+            self.openai_handler.set_voice(new_voice.lower())
+            await ctx.channel.send(f"Voice changed to {new_voice}. 🤖")
         else:
-            return await ctx.channel.send(f"🤖 Please use alloy, echo, fable, onyx, nova, or shimmer. CURRENT VOICE: {TTS_VOICE}  MORE INFO:  <https://platform.openai.com/docs/guides/text-to-speech>"  )
-    
+            current_voice = self.openai_handler.get_voice()
+            await ctx.channel.send(
+                f"🤖 Please use alloy, echo, fable, onyx, nova, or shimmer. "
+                f"CURRENT VOICE: {current_voice}"
+            )
+
     @commands.command()
     async def get_voice(self, ctx):
-        return await ctx.channel.send(f"Current TTS Voice: `{TTS_VOICE}`" )
+        """Get current TTS voice setting."""
+        current_voice = self.openai_handler.get_voice()
+        await ctx.channel.send(f"Current TTS Voice: `{current_voice}`")
 
     @commands.command()
     async def instruction(self, ctx):
-        new_instructions = ctx.message.content.replace("!instruction ",'')
-        INSTRUCTIONS = new_instructions
-        return await ctx.channel.send(f"Done! My new instructions are: `{INSTRUCTIONS}`" )
+        """Update AI instruction prompt."""
+        new_instructions = ctx.message.content.replace("!instruction ", '')
+        
+        # Update instructions for both handlers
+        if ctx.channel.id == 1317970533488394261:  # claude-coding channel
+            self.claude_handler.set_instructions(new_instructions)
+        else:
+            self.openai_handler.set_instructions(new_instructions)
+            
+        await ctx.channel.send(f"Done! My new instructions are: `{new_instructions}`")
 
     @commands.command()
     async def get_instruction(self, ctx):
-        return await ctx.channel.send(f"Current Instructions: `{INSTRUCTIONS}`" )
+        """Get current instruction prompt."""
+        if ctx.channel.id == 1317970533488394261:  # claude-coding channel
+            current_instructions = self.claude_handler.get_instructions()
+        else:
+            current_instructions = self.openai_handler.get_instructions()
+            
+        await ctx.channel.send(f"Current Instructions: `{current_instructions}`")
 
     @commands.command()
     async def get_history(self, ctx):
-        if ctx.message.author.id not in conversations:
-            return await ctx.channel.send(f"Found no conversation history from the AI Bot Channels." )
+        """Get conversation history for the current user."""
+        if ctx.channel.id == 1317970533488394261:  # claude-coding channel
+            history = self.claude_handler.get_conversation_history(
+                ctx.message.author.id,
+                ctx.channel.id
+            )
         else:
-            # Re-writing history images to post_filler_image_url
-            temp_conversations = conversations
-            for historical_message in temp_conversations[ctx.message.author.id][ctx.message.channel.id]:
-                if 'content' in historical_message and isinstance(historical_message['content'], list):
-                    for content_item in historical_message['content']:
-                        if isinstance(content_item, dict) and content_item.get('type') == 'image_url':
-                            content_item['image_url']['url'] = 'post_filler_image_url'
-            logging.info(temp_conversations)
-            return await ctx.channel.send(f"Found your conversation history:\n ```{temp_conversations[ctx.message.author.id]}```" )
+            history = self.openai_handler.get_conversation_history(
+                ctx.message.author.id,
+                ctx.channel.id
+            )
+
+        if not history:
+            await ctx.channel.send("No conversation history found.")
+            return
+            
+        formatted_history = "\n".join(
+            f"{msg['role']}: {msg['content'][:100]}..." 
+            for msg in history
+        )
+        
+        await ctx.channel.send(
+            f"Your recent conversation history (truncated):\n```\n{formatted_history}\n```"
+        )
+
+    async def cleanup(self):
+        """Cleanup method to close the aiohttp session."""
+        if self.session:
+            await self.session.close()
